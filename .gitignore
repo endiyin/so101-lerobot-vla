@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+.mypy_cache/
+
+# LeRobot outputs and caches
+outputs/
+*.cache
+.cache/
+wandb/
+
+# Datasets and videos (too large for git)
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.png
+*.jpg
+*.jpeg
+*.gif
+data/
+datasets/
+videos/
+
+# Models and checkpoints (large files)
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.ckpt
+checkpoints/
+pretrained_model/
+
+# Environment
+.env
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
