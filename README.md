@@ -1,0 +1,178 @@
+# SO-101 + LeRobot VLA 实践
+
+> 基于 [LeRobot](https://github.com/huggingface/lerobot) 框架和 SO-101 低成本机械臂，复现 VLA（Vision-Language-Action）相关算法，用于具身智能方向实习准备。
+
+---
+
+## 项目简介
+
+本项目记录我在 Ubuntu 20.04 + SO-101 双臂机械臂上，使用 LeRobot v0.4.3 完成数据采集、训练、部署的全流程实践。
+
+目前主要聚焦：
+- 机械臂标定与遥操作
+- 模仿学习 / 行为克隆
+- VLA 模型复现与对比
+
+后续会持续补充 SmolVLA、π0、π0-FAST 等 VLA 模型的实验结果。
+
+---
+
+## 硬件配置
+
+| 组件 | 型号/参数 |
+|---|---|
+| 操作系统 | Ubuntu 20.04 |
+| GPU | NVIDIA RTX 4060 Laptop |
+| 主臂（Leader） | SO-101 Leader，7.4V 飞特舵机 |
+| 从臂（Follower） | SO-101 Follower，7.4V/12V 飞特舵机 |
+| 舵机 | 飞特 STS3215 系列 |
+| 手眼相机 | OpenCV USB 广角摄像头 |
+| 相机分辨率 | 640 × 480 @ 30fps |
+| 固定串口 | `/dev/so101_leader`, `/dev/so101_follower` |
+| 相机设备 | `/dev/video4` |
+
+---
+
+## 已完成的实验
+
+| 算法 | 状态 | 数据集 | 模型路径 | 备注 |
+|---|---|---|---|---|
+| ACT | ✅ 已完成 | `hui/so101_20260710_222633` | `outputs/train/act_so101_20260710_222633` | loss 6.67 → 0.15 |
+| Diffusion Policy | ⏳ 待进行 | | | |
+| SmolVLA | ⏳ 待进行 | | | |
+| π0 | ⏳ 待进行 | | | |
+| π0-FAST | ⏳ 待进行 | | | |
+
+---
+
+## 训练结果对比
+
+| 算法 | 数据量 | 训练步数 | 最终 loss | 推理成功率 | 单步延迟 | 显存占用 | 备注 |
+|---|---|---|---|---|---|---|---|
+| ACT | 10 eps | 10K | 0.15 | - | - | - | baseline |
+| Diffusion | - | - | - | - | - | - | 待实验 |
+| SmolVLA | - | - | - | - | - | - | 待实验 |
+| π0 | - | - | - | - | - | - | 待实验 |
+| π0-FAST | - | - | - | - | - | - | 待实验 |
+
+---
+
+## 快速开始
+
+### 1. 环境准备
+
+```bash
+conda create -n lerobot python=3.10 -y
+conda activate lerobot
+git clone https://github.com/JoyandAI/lerobot.git
+cd lerobot
+pip install -e ".[feetech]"
+conda install -c conda-forge ffmpeg=7.1.1 -y
+```
+
+### 2. 标定机械臂
+
+```bash
+lerobot-calibrate --robot.type=so101_follower --robot.port=/dev/so101_follower --robot.id=1
+lerobot-calibrate --teleop.type=so101_leader --teleop.port=/dev/so101_leader --teleop.id=1
+```
+
+### 3. 数据采集
+
+```bash
+lerobot-record \
+    --robot.disable_torque_on_disconnect=true \
+    --robot.type=so101_follower \
+    --robot.port=/dev/so101_follower \
+    --robot.id=1 \
+    --robot.cameras="{'wrist': {'type': 'opencv', 'index_or_path': '/dev/video4', 'width': 640, 'height': 480, 'fps': 30}}" \
+    --teleop.type=so101_leader \
+    --teleop.port=/dev/so101_leader \
+    --teleop.id=1 \
+    --display_data=true \
+    --dataset.repo_id=hui/so101_$(date +%Y%m%d_%H%M%S) \
+    --dataset.num_episodes=10 \
+    --dataset.episode_time_s=20 \
+    --dataset.single_task="Grab the black cube" \
+    --dataset.push_to_hub=false
+```
+
+### 4. 训练 ACT
+
+```bash
+export HF_HUB_OFFLINE=1
+lerobot-train \
+  --dataset.repo_id=hui/so101_20260710_222633 \
+  --policy.type=act \
+  --output_dir=outputs/train/act_so101_20260710_222633 \
+  --job_name=act_so101_20260710_222633 \
+  --policy.device=cuda \
+  --steps=10000 \
+  --save_freq=500 \
+  --policy.push_to_hub=false \
+  --wandb.enable=false
+```
+
+### 5. 推理部署
+
+```bash
+lerobot-record \
+  --robot.type=so101_follower \
+  --robot.port=/dev/so101_follower \
+  --robot.id=1 \
+  --teleop.type=so101_leader \
+  --teleop.port=/dev/so101_leader \
+  --teleop.id=1 \
+  --robot.disable_torque_on_disconnect=true \
+  --robot.cameras="{'wrist': {'type': 'opencv', 'index_or_path': '/dev/video4', 'width': 640, 'height': 480, 'fps': 30}}" \
+  --display_data=true \
+  --dataset.single_task="Grab the black cube" \
+  --policy.path=outputs/train/act_so101_20260710_222633/checkpoints/last/pretrained_model \
+  --policy.device=cuda \
+  --dataset.repo_id=hui/eval_so101_$(date +%Y%m%d_%H%M%S) \
+  --dataset.push_to_hub=false
+```
+
+完整命令参考 [`SO101_COMMANDS.md`](./SO101_COMMANDS.md)。
+
+---
+
+## 踩坑记录
+
+详见 [`SO101_COMMANDS.md`](./SO101_COMMANDS.md) 中的 **常见问题** 章节，主要包括：
+
+- GraalPy 环境下 NumPy 编译失败 → 重建标准 CPython 环境
+- Linux 串口权限不足 → `dialout` 用户组
+- USB 设备号漂移 → udev 规则固定串口名
+- HuggingFace SSL 错误 → `HF_HUB_OFFLINE=1`
+- 相机分辨率设置失败 → 改用相机支持的分辨率
+- rerun viewer 图像只显示一帧 → 修改 `visualization_utils.py` 的 `static=True` 为 `static=False`
+- 6 号舵机过载 → 检查电源、避免长时间夹持硬物
+
+---
+
+## 后续计划
+
+- [ ] 扩充数据集到 50-100 条
+- [ ] 增加 front 环境相机
+- [ ] 复现 Diffusion Policy
+- [ ] 复现 SmolVLA
+- [ ] 复现 π0
+- [ ] 复现 π0-FAST
+- [ ] 多模型对比实验与消融分析
+- [ ] 整理技术博客
+
+---
+
+## 参考
+
+- [LeRobot 官方仓库](https://github.com/huggingface/lerobot)
+- [JoyandAI/LeRobot 适配仓库](https://github.com/JoyandAI/lerobot)
+- [SO-101 官方文档](https://github.com/TheRobotStudio/SO-ARM100)
+- [ACT 论文](https://arxiv.org/abs/2304.13705)
+- [π0 论文](https://arxiv.org/abs/2410.24164)
+- [SmolVLA](https://huggingface.co/blog/smolvla)
+
+---
+
+> 本项目用于 VLA / 具身智能方向实习准备，欢迎交流指正。
