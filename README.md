@@ -38,7 +38,8 @@
 | 算法 | 状态 | 数据集 | 模型路径 | 备注 |
 |---|---|---|---|---|
 | ACT | ✅ 已完成 | `hui/so101_20260710_222633` | `outputs/train/act_so101_20260710_222633` | loss 6.67 → 0.15 |
-| Diffusion Policy | ⏳ 待进行 | | | |
+| Diffusion Policy | ✅ 已完成 | RoboDojo `stack_bowls` 子集 | `outputs/train/diffusion_robodojo_stack_bowls` | 详见 [ROBODOJO_EXPERIMENTS.md](./ROBODOJO_EXPERIMENTS.md) |
+| Diffusion Policy（高效配置） | ⏳ 进行中 | RoboDojo `stack_bowls` 子集 | `outputs/train/diffusion_robodojo_stack_bowls_fast` | 50000 步，num_inference_steps=5 |
 | SmolVLA | ⏳ 待进行 | | | |
 | π0 | ⏳ 待进行 | | | |
 | π0-FAST | ⏳ 待进行 | | | |
@@ -47,13 +48,13 @@
 
 ## 训练结果对比
 
-| 算法 | 数据量 | 训练步数 | 最终 loss | 推理成功率 | 单步延迟 | 显存占用 | 备注 |
-|---|---|---|---|---|---|---|---|
-| ACT | 10 eps | 10K | 0.15 | **原位置 90% / 偏移 5cm 5%** | - | - | 过拟合，位置敏感 |
-| Diffusion | - | - | - | - | - | - | 待实验 |
-| SmolVLA | - | - | - | - | - | - | 待实验 |
-| π0 | - | - | - | - | - | - | 待实验 |
-| π0-FAST | - | - | - | - | - | - | 待实验 |
+| 算法 | 数据量 | 训练步数 | 最终 loss | 任务成功率 | 行为表现 | 单步延迟 | 显存占用 | 备注 |
+|---|---|---|---|---|---|---|---|---|
+| ACT | 10 eps | 10K | 0.15 | **原位置 90% / 偏移 5cm 5%** | 真机抓取方块较稳 | - | - | 过拟合，位置敏感 |
+| ACT (RoboDojo) | 100 eps | 5K | ~0.000 | ~0% | 动到一半原地抽搐，不知如何继续 | - | - | 多模态动作平均导致策略混乱 |
+| Diffusion 10K (RoboDojo) | 100 eps | 10K | - | ~0% | 更迷茫，经常找不到碗的位置 | 慢 | 7GB / 24GB | 训练不足 |
+| Diffusion 20K (RoboDojo) | 100 eps | 20K | 0.009 | ~0% | 能完成夹取→移动→尝试叠放流程，但夹取不稳、提前松抓 | 慢 | 7GB / 24GB | 学到任务结构，精度不足 |
+| Diffusion Fast 50K (RoboDojo) | 100 eps | 50K | - | - | - | - | - | 待完成 |
 
 ### ACT 实验分析
 
