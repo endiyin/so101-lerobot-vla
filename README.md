@@ -73,6 +73,29 @@ RoboDojo `stack_bowls` 的评估集有 **85 个预定义布局**（即 85 种不
 
 **所以目前所有模型（ACT / Diffusion 20K / Diffusion 50K / Diffusion 50K + image_transforms）成功率都接近 0% 的根因是训练数据没有覆盖评估分布，而不是训练步数、开环/闭环或数据增强不够。**
 
+### 为什么 RoboDojo 要这样设计？
+
+这不是 RoboDojo 的 bug，而是它的**设计意图**。
+
+RoboDojo 论文 [RoboDojo: A Unified Sim-and-Real Benchmark for Comprehensive Evaluation of Generalist Robot Manipulation Policies](https://arxiv.org/html/2607.04434v3) 明确指出：
+
+- RoboDojo 是评估 **generalist robot manipulation policies** 的 benchmark，不是单任务模仿学习
+- 训练集设计为 **35 个任务 × 100 个 trajectory = 3500 个 trajectory**，覆盖 Generalization、Memory、Long-Horizon、Precision 四个维度
+- 评估时的 Generalization 维度专门测试对**未见过的背景、光照、杂物、目标物体**的鲁棒性
+
+官方 leaderboard 也证实了单任务模仿学习在这个 benchmark 上的表现：
+
+| 模型 | Generalization 成功率 | 平均成功率 |
+|---|---|---|
+| Hy-Embodied-0.5-VLA（最好的 VLA） | 8.39% | 8.80% |
+| π0.5 | 8.17% | 6.91% |
+| SmolVLA (Single Task) | 1.22% | 0.85% |
+| ACT (Single-Task) | 0.56% | 0.32% |
+
+也就是说，**单任务 ACT 在 RoboDojo 上平均成功率本来就只有 0.32%**。我们的实验结果完全符合这个 benchmark 对单任务模仿学习的预期。
+
+**RoboDojo 期望的参赛方式**是多任务训练 + 预训练 VLA + 数据增强 + domain randomization，而不是单任务训练一个 Diffusion Policy。
+
 ### ACT 实验分析
 
 - **数据集**：10 条 `Grab the black cube` 任务数据
