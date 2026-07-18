@@ -41,7 +41,7 @@
 | Diffusion Policy | ✅ 已完成 | RoboDojo `stack_bowls` 子集 | `outputs/train/diffusion_robodojo_stack_bowls` | 详见 [ROBODOJO_EXPERIMENTS.md](./ROBODOJO_EXPERIMENTS.md) |
 | Diffusion Policy（高效配置） | ✅ 已完成 | RoboDojo `stack_bowls` 子集 | `outputs/train/diffusion_robodojo_stack_bowls_fast` | 50000 步，num_inference_steps=5 |
 | Diffusion Policy（image_transforms 增强） | ✅ 已完成训练 | RoboDojo `stack_bowls` 子集 | `outputs/train/diffusion_robodojo_stack_bowls_aug` | 50000 步，开启数据增强，部署成功率仍约 0%，根因是训练集与评估集分布不匹配 |
-| SmolVLA | ⏳ 待进行 | | | |
+| SmolVLA | ✅ 短测试通过 | RoboDojo 全量 35 任务 | `outputs/train/smolvla_robodojo_test` | 1000 步多任务短测试，loss 0.568 → 0.204，显存 2.8GB，待启动完整 100000 步训练 |
 | π0 | ⏳ 待进行 | | | |
 | π0-FAST | ⏳ 待进行 | | | |
 
@@ -58,6 +58,7 @@
 | Diffusion Fast 50K (RoboDojo) | 100 eps | 50K | - | ~0% | 随机位置下流程完全正确、尽力夹取，但夹爪夹得很浅，始终夹空气搬运空气 | 快 | 7GB / 24GB | 高层策略已学会，夹爪闭合精度不足 |
 | Diffusion Fast 50K + Closed-Loop (RoboDojo) | 100 eps | 50K | - | ~0% | 流程仍正确，但成功率无明显提升；唯一一次夹住因抬升不够高推开底层碗 | 慢 | 7GB / 24GB | Closed-loop 只修正执行流程，未提升夹取物理精度 |
 | Diffusion Fast 50K + image_transforms (RoboDojo) | 100 eps | 50K | 待补充 | ~0% | 仍然夹空气，无法精准定位碗的位置 | 快 | 7GB / 24GB | 训练集只覆盖 4~5 种布局，评估有 85 种预定义布局，分布不匹配 |
+| SmolVLA 1000-step test (RoboDojo) | 3500 eps (35 tasks) | 1K | 0.204 | 未部署 | 训练启动正常，loss 下降，无 OOM | - | 2.8GB / 24GB | 多任务短测试通过；完整训练与部署待进行 |
 
 ### 当前核心困难
 
@@ -212,10 +213,10 @@ lerobot-record \
 当前项目核心目标已从"让单任务模仿学习成功"转向"复现并分析 VLA 模型在机器人操作 benchmark 上的表现，形成可写在简历上的完整项目"。
 
 1. **复现 SmolVLA 在 RoboDojo 上的微调**
-   - 从 HuggingFace 加载 `lerobot/smolvla_base`（或 `HuggingFaceTB/SmolVLM2-500M-Video-Instruct`）
-   - 在 RoboDojo 多任务数据上微调 action expert
-   - 解决 HuggingFace 下载、显存、数据格式匹配等问题
-   - 部署到 `stack_bowls` 任务并记录表现
+   - ✅ 从 HuggingFace 加载 `lerobot/smolvla_base`（或 `HuggingFaceTB/SmolVLM2-500M-Video-Instruct`）
+   - ✅ 在 RoboDojo 多任务数据上微调 action expert（1000 步短测试通过）
+   - ✅ 解决 HuggingFace 下载、显存、数据格式匹配等问题
+   - ⏳ 部署到 `stack_bowls` 任务并记录表现（需先完成完整训练）
 
 2. **复现 π0 / π0.5（可选，资源允许）**
    - 在 RTX 3090 24GB 上测试可行性
@@ -244,6 +245,8 @@ lerobot-record \
 - [x] 分析 RoboDojo 评估布局机制与单任务模仿学习失败根因
 - [x] 修复 LeRobot episodes 过滤导致的 IndexError
 - [x] 改进 XPolicyLab adapter 支持自动识别 policy 类型
+- [x] 完成 SmolVLA 在 RoboDojo 多任务数据上的 1000 步短测试
+- [x] 修复 SmolVLA `rename_map` 导致 `image_features` 不匹配的 bug
 
 ---
 
