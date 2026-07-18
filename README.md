@@ -207,14 +207,43 @@ lerobot-record \
 
 ## 后续计划
 
-- [ ] 扩充数据集到 50-100 条
+### 近期目标（面向 VLA 实习准备）
+
+当前项目核心目标已从"让单任务模仿学习成功"转向"复现并分析 VLA 模型在机器人操作 benchmark 上的表现，形成可写在简历上的完整项目"。
+
+1. **复现 SmolVLA 在 RoboDojo 上的微调**
+   - 从 HuggingFace 加载 `lerobot/smolvla_base`（或 `HuggingFaceTB/SmolVLM2-500M-Video-Instruct`）
+   - 在 RoboDojo 多任务数据上微调 action expert
+   - 解决 HuggingFace 下载、显存、数据格式匹配等问题
+   - 部署到 `stack_bowls` 任务并记录表现
+
+2. **复现 π0 / π0.5（可选，资源允许）**
+   - 在 RTX 3090 24GB 上测试可行性
+   - 如显存不足，尝试 LoRA / gradient checkpointing / bfloat16
+
+3. **多模型对比与消融分析**
+   - ACT（单任务） vs Diffusion Policy（单任务/多任务） vs SmolVLA
+   - 对比指标：任务成功率、推理延迟、显存占用、训练耗时
+   - 重点分析：VLA 是否比纯模仿学习在泛化任务上更有优势
+
+4. **整理技术博客 / 项目文档**
+   - 把实验过程、踩坑记录、对比结果整理成博客或 README
+   - 突出工程贡献：LeRobot bug 修复、XPolicyLab adapter 改进
+
+### SO-101 真机方向（长期）
+
+- [ ] 扩充真机数据集到 50-100 条
 - [ ] 增加 front 环境相机
-- [ ] 复现 Diffusion Policy
-- [ ] 复现 SmolVLA
-- [ ] 复现 π0
-- [ ] 复现 π0-FAST
-- [ ] 多模型对比实验与消融分析
-- [ ] 整理技术博客
+- [ ] 在 SO-101 上部署 VLA 模型
+- [ ] 真机多任务能力验证
+
+### 已完成
+
+- [x] 在 SO-101 真机上完成 ACT 数据采集与训练
+- [x] 在 RoboDojo 仿真上完成 ACT / Diffusion Policy 单任务训练与部署
+- [x] 分析 RoboDojo 评估布局机制与单任务模仿学习失败根因
+- [x] 修复 LeRobot episodes 过滤导致的 IndexError
+- [x] 改进 XPolicyLab adapter 支持自动识别 policy 类型
 
 ---
 
