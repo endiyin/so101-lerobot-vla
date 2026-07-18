@@ -40,7 +40,7 @@
 | ACT | ✅ 已完成 | `hui/so101_20260710_222633` | `outputs/train/act_so101_20260710_222633` | loss 6.67 → 0.15 |
 | Diffusion Policy | ✅ 已完成 | RoboDojo `stack_bowls` 子集 | `outputs/train/diffusion_robodojo_stack_bowls` | 详见 [ROBODOJO_EXPERIMENTS.md](./ROBODOJO_EXPERIMENTS.md) |
 | Diffusion Policy（高效配置） | ✅ 已完成 | RoboDojo `stack_bowls` 子集 | `outputs/train/diffusion_robodojo_stack_bowls_fast` | 50000 步，num_inference_steps=5 |
-| Diffusion Policy（image_transforms 增强） | ✅ 已完成训练 | RoboDojo `stack_bowls` 子集 | `outputs/train/diffusion_robodojo_stack_bowls_aug` | 50000 步，开启数据增强，待部署验证 |
+| Diffusion Policy（image_transforms 增强） | ✅ 已完成训练 | RoboDojo `stack_bowls` 子集 | `outputs/train/diffusion_robodojo_stack_bowls_aug` | 50000 步，开启数据增强，部署成功率仍约 0%，根因是训练集与评估集分布不匹配 |
 | SmolVLA | ⏳ 待进行 | | | |
 | π0 | ⏳ 待进行 | | | |
 | π0-FAST | ⏳ 待进行 | | | |
@@ -57,7 +57,7 @@
 | Diffusion 20K (RoboDojo) | 100 eps | 20K | 0.009 | ~0% | 能完成夹取→移动→尝试叠放流程，但夹取不稳、提前松抓 | 慢 | 7GB / 24GB | 学到任务结构，精度不足 |
 | Diffusion Fast 50K (RoboDojo) | 100 eps | 50K | - | ~0% | 随机位置下流程完全正确、尽力夹取，但夹爪夹得很浅，始终夹空气搬运空气 | 快 | 7GB / 24GB | 高层策略已学会，夹爪闭合精度不足 |
 | Diffusion Fast 50K + Closed-Loop (RoboDojo) | 100 eps | 50K | - | ~0% | 流程仍正确，但成功率无明显提升；唯一一次夹住因抬升不够高推开底层碗 | 慢 | 7GB / 24GB | Closed-loop 只修正执行流程，未提升夹取物理精度 |
-| Diffusion Fast 50K + image_transforms (RoboDojo) | 100 eps | 50K | 待补充 | 待验证 | 待验证 | 待验证 | 待验证 | 开启数据增强，待部署验证 |
+| Diffusion Fast 50K + image_transforms (RoboDojo) | 100 eps | 50K | 待补充 | ~0% | 仍然夹空气，无法精准定位碗的位置 | 快 | 7GB / 24GB | 训练集只覆盖 4~5 种布局，评估有 85 种预定义布局，分布不匹配 |
 
 ### ACT 实验分析
 
