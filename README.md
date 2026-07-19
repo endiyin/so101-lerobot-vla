@@ -192,6 +192,12 @@ lerobot-record \
 
 ---
 
+## 每日进度
+
+每日更新见 [`DAILY_PROGRESS.md`](./DAILY_PROGRESS.md)。
+
+---
+
 ## 踩坑记录
 
 详见 [`SO101_COMMANDS.md`](./SO101_COMMANDS.md) 中的 **常见问题** 章节，主要包括：
