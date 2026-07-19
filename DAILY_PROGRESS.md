@@ -51,24 +51,35 @@
 ### 完成内容
 
 1. **Diffusion Policy 50000 步 + image_transforms 部署验证**
-   - 部署模型：`diffusion_robodojo_stack_bowls_aug/checkpoints/050000`
+   - 部署模型：`/media/endiyin/F/RoboDojo/outputs/train/diffusion_robodojo_stack_bowls_aug/checkpoints/050000/pretrained_model`
+   - 配置：`num_inference_steps=5`，训练时启用 brightness/contrast/saturation/hue/sharpness/affine 增强
    - 结果：任务成功率仍约 0%，仍然频繁夹空气
    - 与无增强版本相比没有明显改善
+   - 结论：image_transforms 无法弥补训练集与评估集分布不匹配的问题
 
 2. **RoboDojo 评估布局机制分析**
-   - 发现 `stack_bowls` 任务评估时使用 85 个预定义布局
-   - 训练集（100 episode）只覆盖约 4~5 种主要放置方式
-   - 评估布局的碗位、颜色/材质种类远超训练集覆盖范围
+   - 评估布局目录：`/media/endiyin/F/RoboDojo/Assets/Eval_Layout/RoboDojo/arx_x5/0/`
+   - 发现 `stack_bowls` 任务评估时使用 85 个预定义布局（`stack_bowls_0.json` ~ `stack_bowls_84.json`）
+   - 每个 episode 按顺序选取一个布局文件
+   - 布局中碗的 `default_pos` 固定，`rotate_rand=false`
+   - 训练集（100 episode，3000~3099）只覆盖约 4~5 种主要放置方式
+   - 评估布局中碗的 `category_idx` 分布很广（1, 2, 3, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15），对应不同颜色/材质
    - 结论：训练集与评估集分布严重不匹配，这是模仿学习失败的主因
 
 3. **RoboDojo 设计意图调研**
-   - 查阅 RoboDojo 论文，确认该 benchmark 目标是评估 generalist robot manipulation policies
+   - 查阅 RoboDojo 论文 [RoboDojo: A Unified Sim-and-Real Benchmark for Comprehensive Evaluation of Generalist Robot Manipulation Policies](https://arxiv.org/html/2607.04434v3)
+   - 确认该 benchmark 目标是评估 generalist robot manipulation policies，不是单任务模仿学习
    - 训练集仅 35 任务 × 100 trajectory = 3500 trajectory
-   - Leaderboard 显示单任务 ACT 平均成功率仅 0.32%，单任务 SmolVLA 仅 0.85%
+   - Leaderboard 数据：
+     - Hy-Embodied-0.5-VLA：Generalization 8.39%，平均 8.80%
+     - π0.5：Generalization 8.17%，平均 6.91%
+     - SmolVLA (Single Task)：Generalization 1.22%，平均 0.85%
+     - ACT (Single-Task)：Generalization 0.56%，平均 0.32%
    - 更新文档说明：该 benchmark 期望多任务训练 + 预训练 VLA，而非单任务海量数据过拟合
 
 4. **更新 README 项目目标**
    - 将项目目标从"让单任务模仿学习成功"调整为"复现并分析 VLA 模型在机器人操作 benchmark 上的表现，形成可写在简历上的完整项目"
+   - 把后续重点转向 SmolVLA / π0 等 VLA 模型
 
 ---
 
@@ -77,25 +88,37 @@
 ### 完成内容
 
 1. **Diffusion Policy 20000 步训练完成**
-   - 数据集：`stack_bowls` 子集（episodes 3000~3099）
-   - 耗时约 52 分钟
+   - 数据集：`stack_bowls` 子集（episodes 3000~3099），共 44874 帧
+   - 训练命令见 `train_act_demo.txt` 第 2 节
+   - 开始时间：2026-07-16 16:33:54
+   - 结束时间：2026-07-16 17:26:14
+   - 总耗时：约 52 分钟
    - loss 从 0.795 降到 0.009
-   - 关闭 `image_transforms`、提高 `num_workers=8` 后 GPU 利用率从 2~3% 提升到 80%
+   - 模型参数量：271M
+   - 关键优化：关闭 `image_transforms`、设置 `num_workers=8` 后，GPU 利用率从 2~3% 提升到 80%，解决视频解码 CPU 瓶颈
+   - Checkpoint：`/media/endiyin/F/RoboDojo/outputs/train/diffusion_robodojo_stack_bowls/checkpoints/020000/pretrained_model`
 
 2. **Diffusion Policy 10000 步与 20000 步部署对比**
-   - 10000 步：更迷茫，经常找不到碗的位置
-   - 20000 步：能完成"靠近→夹取→移动→尝试叠放"流程，但夹取不稳、提前松抓
+   - 10000 步（`checkpoints/010000`）：更迷茫，经常找不到碗的位置
+   - 20000 步（`checkpoints/020000`）：能完成"靠近→夹取→移动→尝试叠放"流程，但夹取不稳、提前松抓
+   - 动作速度较慢，因为 `num_inference_steps=10`
 
 3. **Closed-Loop 部署实验**
-   - 修改 `deploy.py` 支持 closed-loop 重新规划（`replan_interval=1`）
+   - 修改 `deploy.py` 支持 closed-loop 重新规划
+   - 配置：`replan_interval=1`（每执行 1 个 action 重新调用 `get_action`）
+   - 使用模型：`diffusion_robodojo_stack_bowls_fast/checkpoints/050000`
    - 结果：流程仍正确，但成功率无明显提升
-   - 唯一一次夹住碗，因抬升高度不够推开底层碗
+   - 唯一一次成功夹住碗并移动，但因抬升高度不够推开底层碗
    - 结论：问题根源不是执行流程，而是夹取物理精度本身不够
 
 4. **Diffusion Policy 50000 步部署观察**
+   - 使用模型：`/media/endiyin/F/RoboDojo/outputs/train/diffusion_robodojo_stack_bowls_fast/checkpoints/050000/pretrained_model`
+   - 配置：`num_inference_steps=5`
    - 动作流程完全正确、像模像样
    - 但夹爪夹得很浅，始终夹空气搬运空气
    - 高层策略已学会，夹爪闭合深度/物理接触细节没学好
+   - 如果夹爪把碗碰到未见过的位置，夹臂会一直抽搐直到环境重启
+   - 即使没夹住东西，也会继续移动到叠放位置，说明只是模仿动作流程
 
 ---
 
@@ -104,17 +127,24 @@
 ### 完成内容
 
 1. **Diffusion Policy 50000 步无增强训练完成**
-   - 配置：`num_inference_steps=5`，`steps=50000`
-   - 相比 20000 步版本，训练和部署速度提升约一倍
+   - 模型：`diffusion_robodojo_stack_bowls_fast`
+   - 配置：`num_inference_steps=5`，`steps=50000`，`batch_size=16`，`num_workers=8`
+   - 相比 20000 步版本（`num_inference_steps=10`），训练和部署速度提升约一倍
+   - Checkpoint：`/media/endiyin/F/RoboDojo/outputs/train/diffusion_robodojo_stack_bowls_fast/checkpoints/050000/pretrained_model`
+   - 脚本：`/media/endiyin/F/RoboDojo/outputs/train/train_diffusion_stack_bowls_fast.sh`
 
 2. **Diffusion Policy 50000 步 image_transforms 增强训练完成**
-   - 启用 brightness、contrast、saturation、hue、sharpness、affine 增强
-   - `num_workers=12` 缓解增强带来的 CPU 负载
+   - 模型：`diffusion_robodojo_stack_bowls_aug`
+   - 启用增强：brightness、contrast、saturation、hue、sharpness、affine
+   - 配置：`num_workers=12` 缓解增强带来的 CPU 负载
+   - Checkpoint：`/media/endiyin/F/RoboDojo/outputs/train/diffusion_robodojo_stack_bowls_aug/checkpoints/050000/pretrained_model`
+   - 创建模型训练记录卡 `outputs/train/diffusion_robodojo_stack_bowls_aug/README.md`
 
 3. **ACT on `stack_bowls` 子集部署**
+   - 模型：`act_robodojo_stack_bowls`（训练 5000 步，loss 接近 0）
    - 任务成功率约 0%
    - 机械臂动到一半后原地抽搐
-   - 确认 ACT 无法处理多模态动作分布
+   - 确认 ACT 无法处理多模态动作分布：MSE 损失把多个正确策略平均成"四不像"
 
 ---
 
@@ -123,25 +153,38 @@
 ### 完成内容
 
 1. **环境搭建**
-   - 安装 Miniconda + `lerobot` 环境
-   - 克隆 JoyandAI/lerobot v0.4.3
-   - 安装 feetech 驱动和 ffmpeg 7.1.1
+   - 安装 Miniconda（Python 3.10）
+   - 创建 `lerobot` conda 环境
+   - 克隆 JoyandAI/lerobot v0.4.3 到 `/media/endiyin/F/lerobot`
+   - 安装 lerobot 依赖：`pip install -e ".[feetech]"`
+   - 安装 ffmpeg 7.1.1：`conda install -c conda-forge ffmpeg=7.1.1`
+   - 配置 pip 清华镜像源加速下载
 
 2. **RoboDojo 数据集准备**
-   - 下载 RoboDojo v3.0 视频格式数据集（约 120GB）
-   - 生成 `stack_bowls` 任务 episode 列表（3000~3099）
+   - 下载 RoboDojo v3.0 视频格式数据集到 `/media/endiyin/F/RoboDojo/data/RoboDojo_lerobot_v30_video`（约 120GB）
+   - 数据集包含 35 个任务、3500 个 episode、约 186 万帧
+   - 生成 `stack_bowls` 任务 episode 列表：`/media/endiyin/F/RoboDojo/outputs/train/stack_bowls_episodes.txt`（episodes 3000~3099）
 
 3. **LeRobot bug 修复**
-   - 修复 `episodes` 过滤 + `EpisodeAwareSampler` 导致的 `IndexError`
-   - 修改文件：`/media/endiyin/F/lerobot/src/lerobot/datasets/lerobot_dataset.py`
+   - 问题：使用 `--dataset.episodes` 过滤子集训练 Diffusion Policy 时，启动后立刻崩溃：
+     ```text
+     IndexError: Invalid key: 1634679 is out of bounds for size 44874
+     ```
+   - 根因：`EpisodeAwareSampler` 返回整个数据集的绝对帧索引，但过滤后的 `hf_dataset` 行数更少
+   - 修复：修改 `/media/endiyin/F/lerobot/src/lerobot/datasets/lerobot_dataset.py`，在 `__getitem__` 中将绝对索引映射到过滤数据集的相对索引
 
 4. **XPolicyLab adapter 改进**
-   - 修改 `model.py` 自动识别 policy 类型（act / diffusion / smolvla 等）
-   - 不再硬编码 `ACTPolicy.from_pretrained`
+   - 修改文件：`/media/endiyin/F/RoboDojo/XPolicyLab/policy/robodojo_act_lerobot/model.py`
+   - 原代码硬编码 `ACTPolicy.from_pretrained`，无法加载 Diffusion Policy checkpoint
+   - 改进为从 checkpoint 读取 `PreTrainedConfig`，根据 `config.type` 动态获取 policy 类（act / diffusion / smolvla 等）
+   - 现在同一个 adapter 可部署多种 policy
 
 5. **ACT 早期验证**
-   - 在 demo 数据集（1 episode）上训练 ACT，验证流程
-   - 在 `stack_bowls` 子集上训练 ACT 5000 步，loss 接近 0 但部署失败
+   - Demo 数据集：`/media/endiyin/F/RoboDojo/data/demo_arx_x5_white_bow`（1 episode，241 帧）
+   - 在 demo 上训练 ACT 5000 步验证流程，最终 loss 约 0.07
+   - 部署时机械臂抽搐，原因是数据量极小 + ACT 对多模态动作平均
+   - 在 `stack_bowls` 子集（100 episode）上训练 ACT 5000 步，loss 接近 0 但部署成功率约 0%
+   - 确认 ACT 不适合该任务的多模态动作分布
 
 ---
 
