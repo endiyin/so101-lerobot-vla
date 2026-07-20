@@ -41,7 +41,7 @@
 | Diffusion Policy | ✅ 已完成 | RoboDojo `stack_bowls` 子集 | `outputs/train/diffusion_robodojo_stack_bowls` | 详见 [ROBODOJO_EXPERIMENTS.md](./ROBODOJO_EXPERIMENTS.md) |
 | Diffusion Policy（高效配置） | ✅ 已完成 | RoboDojo `stack_bowls` 子集 | `outputs/train/diffusion_robodojo_stack_bowls_fast` | 50000 步，num_inference_steps=5 |
 | Diffusion Policy（image_transforms 增强） | ✅ 已完成训练 | RoboDojo `stack_bowls` 子集 | `outputs/train/diffusion_robodojo_stack_bowls_aug` | 50000 步，开启数据增强，部署成功率仍约 0%，根因是训练集与评估集分布不匹配 |
-| SmolVLA | ✅ 短测试通过 | RoboDojo 全量 35 任务 | `outputs/train/smolvla_robodojo_test` | 1000 步多任务短测试，loss 0.568 → 0.204，显存 2.8GB，待启动完整 100000 步训练 |
+| SmolVLA | ✅ 已完成训练与部署 | RoboDojo 全量 35 任务 | `outputs/train/smolvla_robodojo_multitask` | 100000 步多任务训练，loss 1.155 → 0.078；部署 15 episode 成功率 0%，能定位碗但夹取深度不够 |
 | π0 | ⏳ 待进行 | | | |
 | π0-FAST | ⏳ 待进行 | | | |
 
@@ -58,7 +58,8 @@
 | Diffusion Fast 50K (RoboDojo) | 100 eps | 50K | - | ~0% | 随机位置下流程完全正确、尽力夹取，但夹爪夹得很浅，始终夹空气搬运空气 | 快 | 7GB / 24GB | 高层策略已学会，夹爪闭合精度不足 |
 | Diffusion Fast 50K + Closed-Loop (RoboDojo) | 100 eps | 50K | - | ~0% | 流程仍正确，但成功率无明显提升；唯一一次夹住因抬升不够高推开底层碗 | 慢 | 7GB / 24GB | Closed-loop 只修正执行流程，未提升夹取物理精度 |
 | Diffusion Fast 50K + image_transforms (RoboDojo) | 100 eps | 50K | 待补充 | ~0% | 仍然夹空气，无法精准定位碗的位置 | 快 | 7GB / 24GB | 训练集只覆盖 4~5 种布局，评估有 85 种预定义布局，分布不匹配 |
-| SmolVLA 1000-step test (RoboDojo) | 3500 eps (35 tasks) | 1K | 0.204 | 未部署 | 训练启动正常，loss 下降，无 OOM | - | 2.8GB / 24GB | 多任务短测试通过；完整训练与部署待进行 |
+| SmolVLA 1000-step test (RoboDojo) | 3500 eps (35 tasks) | 1K | 0.204 | 未部署 | 训练启动正常，loss 下降，无 OOM | - | 2.8GB / 24GB | 多任务短测试通过 |
+| SmolVLA 100K (RoboDojo) | 3500 eps (35 tasks) | 100K | 0.078 | ~0%（0/15） | 能大致定位到碗的位置，动作更自然，但夹爪夹得很浅、夹空气搬运空气 | 慢 | 2.7GB / 24GB | 多任务训练让 VLA 学到通用夹取意图，但每个任务数据仍偏少，夹爪闭合精度未学好；训练 0.11 epoch 可能不足 |
 
 ### 当前核心困难
 
@@ -68,6 +69,7 @@ RoboDojo `stack_bowls` 的评估集有 **85 个预定义布局**（即 85 种不
 
 - **ACT**：用 MSE 损失平均多模态动作，数据少时容易抽搐、迷茫
 - **Diffusion Policy**：虽然能表达多模态分布，但仍然依赖训练数据覆盖评估分布
+- **SmolVLA**：多任务预训练 VLA 能学到更好的视觉定位和任务意图，但 35 个任务 × 100 eps 的数据量、100K 步仅 0.11 epoch，夹爪闭合深度仍未学好
 - 271M 参数的模型用 100 个 episode 训练，严重欠拟合位置分布
 
 类比理解：只给你看 4~5 张不同桌子的照片学做菜，考试时给你 85 张完全不同的桌子，还要准确拿到指定杯子——人也会懵。

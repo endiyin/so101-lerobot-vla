@@ -50,25 +50,45 @@
 
 ### 完成内容
 
-1. **启动 SmolVLA 完整多任务训练**
+1. **SmolVLA 完整多任务训练完成（100000 步）**
    - 脚本：`/media/endiyin/F/RoboDojo/outputs/train/train_smolvla_multitask.sh`
    - 日志：`/media/endiyin/F/RoboDojo/outputs/train/smolvla_robodojo_multitask.log`
    - 数据集：RoboDojo 全量 35 任务 / 3500 episode / 1,859,602 帧
    - 配置：`batch_size=2`，`steps=100000`，`save_freq=10000`，冻结视觉编码器，只训练 action expert
    - 模型输出：`/media/endiyin/F/RoboDojo/outputs/train/smolvla_robodojo_multitask`
-   - 启动时间：2026-07-20 13:54:26
-   - 预计总耗时：约 4~5 小时
-
-2. **监控训练状态**
-   - 训练正常启动，GPU 利用率约 90%
-   - 显存占用约 2.7 GB / 24 GB
+   - 启动时间：2026-07-20 13:54:53
+   - 结束时间：2026-07-20 17:43:46
+   - 总耗时：约 **3 小时 49 分钟**
+   - 初始 loss（step 200）：1.155
+   - 最终 loss（step 100000）：约 0.078~0.088
+   - 可训练参数量：100M
+   - GPU 利用率：约 90%
+   - 显存占用：约 2.7 GB / 24 GB
    - 无 OOM
+
+2. **SmolVLA 部署到 `stack_bowls` 任务评估**
+   - 部署脚本/命令：`outputs/train/train_act_demo.txt` 第 4.2 节
+   - 部署日志：`/media/endiyin/F/RoboDojo/outputs/train/smolvla_deploy_stack_bowls_15ep.log`
+   - 使用 checkpoint：`/media/endiyin/F/RoboDojo/outputs/train/smolvla_robodojo_multitask/checkpoints/100000/pretrained_model`
+   - 评估 episode 数：15
+   - 结果：**Success: 0 / Fail: 15 / Unstable: 0**，任务成功率 **0%**
+   - 行为观察：
+     - 相对于 Diffusion Policy，SmolVLA 的夹爪至少能大致移动到碗的上方，不再隔着老远夹空气
+     - 但夹取深度仍然不够，夹爪闭合过浅，无法真正夹起碗
+     - 多次尝试后仍然夹空气或夹起后掉落
+     - 策略在"尝试夹取"这个环节有进步，但物理接触精度仍是瓶颈
+
+3. **文档更新**
+   - `ROBODOJO_EXPERIMENTS.md` 新增 4.8 节（SmolVLA 100000 步训练）和 5.8 节（SmolVLA 部署观察）
+   - 更新 5.5 节失败模式对比表，加入 SmolVLA 多任务结果
+   - 更新 7 节关键文件索引
+   - 更新 8 节待补充细节
 
 ### 下一步计划
 
-- 等待 100000 步训练完成
-- 每 10000 步会保存一个 checkpoint
-- 训练完成后部署到 `stack_bowls` 任务评估
+- 分析 SmolVLA 与 Diffusion Policy 的失败模式差异
+- 考虑下一步优化方向：增加 `stack_bowls` 数据覆盖、调整 SmolVLA 训练配置（更大 batch/更长步数）、或尝试其他 VLA 模型
+- 继续完善项目文档，准备简历/博客素材
 
 ---
 
