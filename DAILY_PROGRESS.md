@@ -46,6 +46,44 @@
 
 ---
 
+## 2026-07-20（今天）
+
+### 完成内容
+
+1. **启动 SmolVLA 完整多任务训练**
+   - 脚本：`/media/endiyin/F/RoboDojo/outputs/train/train_smolvla_multitask.sh`
+   - 日志：`/media/endiyin/F/RoboDojo/outputs/train/smolvla_robodojo_multitask.log`
+   - 数据集：RoboDojo 全量 35 任务 / 3500 episode / 1,859,602 帧
+   - 配置：`batch_size=2`，`steps=100000`，`save_freq=10000`，冻结视觉编码器，只训练 action expert
+   - 模型输出：`/media/endiyin/F/RoboDojo/outputs/train/smolvla_robodojo_multitask`
+   - 启动时间：2026-07-20 13:54:26
+   - 预计总耗时：约 4~5 小时
+
+2. **监控训练状态**
+   - 训练正常启动，GPU 利用率约 90%
+   - 显存占用约 2.7 GB / 24 GB
+   - 无 OOM
+
+### 下一步计划
+
+- 等待 100000 步训练完成
+- 每 10000 步会保存一个 checkpoint
+- 训练完成后部署到 `stack_bowls` 任务评估
+
+---
+
+## 2026-07-19
+
+### 今日状态
+
+- 休息日 / 无实验进展
+
+### 下一步
+
+- 启动 SmolVLA 完整多任务训练
+
+---
+
 ## 2026-07-17
 
 ### 完成内容
