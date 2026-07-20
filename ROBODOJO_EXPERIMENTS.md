@@ -1,7 +1,8 @@
 # RoboDojo 仿真实验记录
 
 > 本文档记录在 RoboDojo 仿真环境（Isaac Sim 5.1.0 + XPolicyLab）上使用 LeRobot 训练 ACT / Diffusion Policy 并部署到 `stack_bowls` 任务的完整过程。  
-> 当前实验范围：**仅聚焦 RoboDojo 120GB 官方数据集中的 `stack_bowls` 叠放盘子任务**，暂未扩展到其他任务。
+> 当前实验范围：**仅聚焦 RoboDojo 120GB 官方数据集中的 `stack_bowls` 叠放盘子任务**，暂未扩展到其他任务。  
+> 更适合对外展示的复盘文档见 [`ROBODOJO_REVIEW.md`](./ROBODOJO_REVIEW.md)。
 
 ---
 
