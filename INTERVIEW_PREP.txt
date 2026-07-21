@@ -1,0 +1,681 @@
+VLA / 具身智能实习面试准备清单
+================================
+
+基于 RoboDojo 仿真实验复盘与第 1 轮模拟面试反馈整理。
+目标：把项目中的技术点、失败分析、工程 bug 修复转化为面试可用的话术和材料。
+
+
+一、模型原理必须脱稿讲清楚
+---------------------------
+
+1.1 ACT
+-------
+[ ] 画一张 ACT 架构图：
+    image encoder (ResNet) + state encoder + transformer encoder + transformer decoder + action head
+
+[ ] 背熟 3 个关键参数：
+    - chunk_size=50：一次性预测 50 步 action
+    - n_obs_steps=1：用 1 帧历史观测
+    - temporal_ensemble_coeff：推理时 ensemble 的权重衰减系数
+
+[ ] 分清训练和推理：
+    - 训练：对预测的 50 步 action 和 ground truth 的 50 步 action 逐帧算 L1 loss，再平均
+    - 推理：当前时刻预测一个 chunk，和历史 chunk 按权重平均（temporal ensemble），执行前 n_action_steps 步
+
+[ ] 准备一句话总结：
+    "ACT 用 transformer 预测 action chunk，靠 temporal ensemble 平滑执行，
+     但 MSE/L1 损失会把多模态动作平均成四不像。"
+
+面试话术示例：
+    "ACT 的核心是 action chunking + temporal ensemble。训练时模型输出 50 步
+     action，和示范数据的 50 步算 L1 loss；推理时为了平滑，会把当前 chunk 和
+     过去几个 chunk 加权平均，只执行前 20 步。这种设计让动作连贯，但面对多
+     模态分布时，MSE 会把多个正确轨迹平均成一个不可行的轨迹，这就是它在
+     stack_bowls 上抽搐的原因。"
+
+
+1.2 Diffusion Policy
+--------------------
+[ ] 画一张 Diffusion Policy 架构图：
+    image encoder + state encoder + FiLM conditioning + UNet 1D + action output
+
+[ ] 背熟 4 个关键参数：
+    - horizon=16：预测 16 步 action
+    - n_obs_steps=2：用 2 帧历史观测
+    - n_action_steps=8：执行前 8 步
+    - num_inference_steps=10：DDIM 去噪 10 步
+
+[ ] 分清 DDPM 和 DDIM：
+    - DDPM：训练时预测 noise，推理时也按训练步数去噪，慢
+    - DDIM：推理时可以用更少步数（如 10 步代替 1000 步），快
+
+[ ] 理解 prediction_type=epsilon：
+    模型预测的是加入的噪声，反推干净 action
+
+[ ] 准备一句话总结：
+    "Diffusion Policy 把 action 生成当成条件去噪过程，能表达多模态分布，
+     但推理慢，且仍然依赖数据覆盖。"
+
+面试话术示例：
+    "Diffusion Policy 用 UNet 做条件去噪，以图像和状态为 condition，从纯噪
+     声逐步生成 action chunk。相比 ACT，它通过 score matching 保留多模态分
+     布，不会把多个正确轨迹平均掉。我把 num_inference_steps 从 10 降到 5，
+     推理速度提升约一倍，动作质量没有明显下降。"
+
+
+1.3 SmolVLA
+-----------
+[ ] 画一张 SmolVLA 架构图：
+    SmolVLM2 vision encoder + language encoder + action expert (transformer)
+
+[ ] 背熟 3 个关键参数：
+    - freeze_vision_encoder=true：冻结视觉 backbone
+    - train_expert_only=true：只训练 action expert
+    - chunk_size=50：预测 50 步 action
+
+[ ] 理解 VLA 的优势：
+    语言指令 grounding、多任务预训练、视觉语义理解
+
+[ ] 准备一句话总结：
+    "SmolVLA 用预训练 VLM 提取视觉-语言特征，再用 action expert 生成动作，
+     多任务训练让它定位更准，但物理操作精度仍依赖同任务数据。"
+
+面试话术示例：
+    "SmolVLA 基于 SmolVLM2，我冻结了 vision encoder 只训练 100M 参数的
+     action expert。多任务训练让它在 stack_bowls 上能准确定位碗的位置，说
+     明 VLM 的视觉理解确实迁移过来了；但 3500 episode 对 35 个任务来说每
+     个任务只有 100 条，100K 步只有 0.11 epoch，夹爪闭合深度这种精细操作
+     还没学好。"
+
+
+1.4 自检方法
+------------
+[ ] 不看笔记，用手机录音讲一遍 ACT / Diffusion / SmolVLA，回放检查有没有卡壳
+[ ] 在纸上默画三个模型的架构图和关键参数
+[ ] 准备一份「模型对比 cheat sheet」放简历附件里
+
+
+二、统一失败归因口径
+--------------------
+
+2.1 先统一内部口径
+------------------
+[ ] 把 ROBODOJO_REVIEW.md 和 README.md 中所有 SmolVLA 失败原因统一为：
+    "视觉定位大致正确，但夹爪闭合深度/物理接触精度不足"
+[ ] 删掉或修改"视觉定位精度不够"的表述，避免自相矛盾
+
+
+2.2 每个结论绑定一个可验证的观察依据
+------------------------------------
+| 结论 | 可验证依据 |
+|---|---|
+| ACT 抽搐是因为多模态平均 | 视频：机械臂在两个碗之间来回摆动 |
+| Diffusion 50K 流程正确但夹不住 | 视频：夹爪移动到碗上方、闭合、但碗没动 |
+| SmolVLA 定位比 Diffusion 准 | 对比视频：SmolVLA 夹爪在碗正上方，Diffusion 偏离 5~10cm |
+| 夹取深度不够是共性瓶颈 | gripper 输出曲线：闭合角度达到最大值，但碗未被抬起 |
+
+[ ] 从部署视频里截取 3~5 张关键帧，放在复盘文档对应位置
+[ ] 准备一段 30 秒内的对比视频（Diffusion vs SmolVLA），面试时可以现场展示
+
+
+2.3 准备「失败模式分类」话术
+----------------------------
+面试话术示例：
+    "我把失败分成三类：定位失败、夹取失败、执行失败。ACT 是定位+执行都失
+     败，Diffusion 20K 是夹取失败，Diffusion 50K 和 SmolVLA 是定位基本成
+     功但夹取深度不够。这个分类帮助我确定瓶颈在物理操作层，而不是视觉理
+     解层。"
+
+
+三、工程问题要讲出 debug 路径
+-----------------------------
+
+3.1 为每个 bug 准备「STAR-R」结构
+---------------------------------
+S ituation：什么场景下出现
+T ask：你要解决什么问题
+A ction：你具体做了什么
+R esult：修复结果
+R eflection：学到了什么
+
+[ ] 给 3 个 bug 各写一段 150 字左右的 STAR-R 描述
+
+
+3.2 以 SmolVLA rename_map bug 为例
+----------------------------------
+[ ] 报错信息原文：
+    ValueError: All image features are missing from the batch. At least one expected.
+
+[ ] 假设树：
+    1. 数据加载有问题？→ 检查 batch keys，有 observation.images.camera1/2/3
+    2. 模型配置有问题？→ 检查 policy.config.image_features，还是 cam_high/...
+    3. 预处理没生效？→ 检查 RenameObservationsProcessorStep，确实改了 batch key
+    4. 配置和预处理不同步？→ 定位到 make_policy() 填充 input_features 时没应用 rename_map
+
+[ ] 验证方法：
+    打印 batch.keys() 和 policy.config.image_features.keys()，发现交集为空
+
+[ ] 修复：
+    在 make_policy() 中对 cfg.input_features 应用 rename_map
+
+[ ] 反思：
+    框架的「配置-数据-预处理」三层一致性容易出 bug，以后要先打印 key 做 sanity check
+
+面试话术示例：
+    "训练 SmolVLA 时第一个 step 就报 All image features are missing from
+     the batch。我先打印了 batch 的 keys，发现是 camera1/2/3；又打印了
+     policy.config.image_features 的 keys，发现还是 cam_high/...。这说明
+     RenameObservationsProcessorStep 改了运行时 batch，但 make_policy()
+     初始化配置时没同步改。于是我在 factory.py 里给 cfg.input_features
+     也应用了 rename_map，问题就解决了。这个 bug 让我意识到，框架里配置、
+     数据、预处理三层的一致性需要显式校验。"
+
+
+3.3 准备「如果面试官继续深挖」的预案
+------------------------------------
+[ ] 如果问"为什么不早点发现？"
+    → 回答："因为 LeRobot 的 rename_map 是社区常用功能，但 SmolVLA 是较
+      新的 policy，这个组合场景没被充分测试。"
+
+[ ] 如果问"这个 bug 能提 PR 吗？"
+    → 回答："可以，我已经本地修复，如果需要我可以整理成 PR 提交给
+      HuggingFace。"
+
+
+四、开放性问题要有优先级
+------------------------
+
+4.1 准备「优先级框架」
+----------------------
+遇到"怎么提高成功率"类问题，按这个顺序回答：
+    1. 数据：分布覆盖 > 数据量 > 数据质量
+    2. 模型：预训练 > 多任务 > 单任务
+    3. 训练：步数 > batch size > 学习率
+    4. 推理：closed-loop > 后处理 > 集成
+
+[ ] 把这个框架写在纸上，面试时先复述再给方案
+
+
+4.2 针对 stack_bowls 的具体方案（按优先级）
+-------------------------------------------
+| 优先级 | 方案 | 预期收益 | 成本 | 可行性 |
+|---|---|---|---|---|
+| P0 | 分析 85 个评估布局，用 scripted policy 批量生成覆盖所有布局的数据 | 高 | 中 | 高 |
+| P0 | 延长 SmolVLA 训练到 500K~1M 步（目前 0.11 epoch） | 高 | 低 | 高 |
+| P1 | 用多任务 Diffusion Policy 覆盖 35 个任务 | 中高 | 低 | 高 |
+| P1 | 数据增强：颜色、光照、背景、相机抖动 | 中 | 低 | 高 |
+| P2 | 尝试 π0 / π0.5 等更强 VLA | 中 | 高 | 中 |
+| P2 | 引入 RL fine-tuning（如 PPO / DAgger） | 中 | 高 | 低 |
+| P3 | 真机 SO-101 采集更多数据做 sim2real | 高（长期） | 高 | 中 |
+
+[ ] 把这张表背下来，面试时可以直接说："我会按 P0→P1→P2 的优先级做..."
+
+面试话术示例：
+    "如果要把 stack_bowls 成功率从 0% 提到 50% 以上，我会分三步：第一步，
+     数据层，先分析 85 个评估布局，用 scripted policy 或 motion planning
+     批量生成覆盖这些布局的演示数据，这是最直接提升覆盖率的方法；第二步，
+     模型层，继续训练 SmolVLA 到 500K 步以上，目前 100K 步只有 0.11
+     epoch，远未收敛；第三步，如果还有差距，再考虑 RL fine-tuning 或更强
+     的 VLA 模型。核心逻辑是：先解决数据分布，再解决模型容量，最后才是训
+     练技巧。"
+
+
+4.3 准备「如果追问 RL」的预案
+-----------------------------
+[ ] 如果问"为什么不用 RL 直接训？"
+    → 回答："RoboDojo 的 reward 需要人工设计，且 85 个布局的状态空间很
+      大，纯 RL 样本效率太低。更实际的是用 RL 训一个 teacher，再蒸馏成
+      BC 数据。"
+
+[ ] 如果问"DAgger 行不行？"
+    → 回答："DAgger 需要在线交互和专家标注，在 85 个布局上 rollout 成本
+      很高，适合作为 fine-tuning 手段，不适合冷启动。"
+
+
+五、执行清单（今天就能做）
+--------------------------
+
+[ ] 修改 ROBODOJO_REVIEW.md 和 README.md，统一 SmolVLA 失败原因表述
+[ ] 从部署日志/视频中截取 3 张关键帧，插入复盘文档
+[ ] 写 3 个 bug 的 STAR-R 描述，存在手机备忘录里
+[ ] 画 ACT / Diffusion / SmolVLA 架构图各一张，拍照存手机
+[ ] 录音讲一遍三个模型，检查卡壳点
+[ ] 准备「优先级框架」话术，对着镜子说两遍
+
+
+六、关联文档
+------------
+
+- ROBODOJO_REVIEW.md：对外展示的 RoboDojo 仿真实验复盘
+- ROBODOJO_EXPERIMENTS.md：详细实验记录与部署观察
+- README.md：项目总入口与训练结果对比
+- DAILY_PROGRESS.md：每日进度记录
+
+
+七、深度学习八股文（与项目强相关）
+==================================
+
+真实面试中除了项目深挖，一定会问基础八股文。以下问题均围绕你的项目
+（ACT / Diffusion Policy / SmolVLA）展开，建议全部准备。
+
+答题原则：答不上来直接说"不太清楚"，不要瞎编。面试官更看重诚实和
+学习态度。
+
+
+7.1 Transformer 基础
+--------------------
+问题：ACT 和 SmolVLA 的 action expert 都用了 Transformer。请描述
+self-attention 的计算过程，以及为什么要用 multi-head attention 而不是
+single-head？Transformer 里的 position encoding 是干什么的？ACT 里输入的
+image token 和 state token 需要加 position encoding 吗？为什么？
+
+考察点：
+- Q/K/V 的计算、softmax(QK^T/sqrt(d_k))V
+- multi-head 让模型在不同子空间学习不同关系，增强表达能力
+- position encoding 给序列注入位置信息，因为 attention 本身没有顺序概念
+- ACT 的 image token 来自 CNN/ViT，通常需要加 position encoding；state token
+  是低维向量，通常也加可学习的 position embedding
+
+参考答案要点：
+- self-attention：输入 X 分别乘 Wq/Wk/Wv 得到 Q/K/V，计算
+  softmax(QK^T/sqrt(d_k))V 得到输出
+- multi-head：把 d_model 拆成 h 个头，每个头独立做 attention，最后拼接
+  再乘 Wo。好处是不同头可以关注不同模式（如全局依赖、局部关系）
+- position encoding：因为 attention 是 permutation-invariant 的，必须显式
+  告诉模型 token 的顺序。ACT 用 learnable position embedding 或 sinusoidal
+  encoding
+
+
+7.2 Diffusion 基础
+------------------
+问题：DDPM 的 forward process（加噪）和 reverse process（去噪）分别是什么？
+noise schedule（如 squaredcos_cap_v2）的作用是什么？为什么不用线性 schedule？
+训练时随机采样 timestep t，这个 t 的范围是多少？num_train_timesteps=100 和
+num_inference_steps=10 是什么关系？
+
+考察点：
+- forward：x_t = sqrt(alpha_bar_t) * x_0 + sqrt(1-alpha_bar_t) * epsilon
+- reverse：用神经网络预测 epsilon，逐步从 x_T 恢复到 x_0
+- noise schedule 控制加噪速度，cosine schedule 在两端变化更平缓，训练更稳定
+- t ∈ [1, T]，T = num_train_timesteps = 100
+- num_inference_steps=10 是 DDIM 的推理步数，远小于训练步数，靠 DDIM 的
+  非马尔可夫性质加速
+
+参考答案要点：
+- forward process：逐步给干净 action x_0 加高斯噪声，T 步后变成纯噪声 x_T
+- reverse process：训练 UNet 预测加入的噪声 epsilon，推理时从 x_T 开始
+  逐步去噪生成 action
+- squaredcos_cap_v2：改进的 cosine schedule，避免两端 beta 变化过快，
+  提升生成质量
+- num_train_timesteps=100：训练时把 [0,1] 分成 100 个 timestep
+- num_inference_steps=10：推理时用 DDIM 跳步采样，10 步就能生成，速度
+  提升 10 倍，质量损失很小
+
+
+7.3 归一化
+----------
+问题：BatchNorm、LayerNorm、GroupNorm 的区别是什么？为什么 Diffusion
+Policy 里用 GroupNorm 而不是 BatchNorm？pre_norm 和 post_norm 的区别是什么？
+对训练稳定性有什么影响？
+
+考察点：
+- BatchNorm：按 batch 统计均值方差，依赖 batch size，训练推理不一致
+- LayerNorm：按特征维度归一化，不依赖 batch，适合 Transformer
+- GroupNorm：把 channel 分组归一化，不依赖 batch size，适合 CNN 和小 batch
+- Diffusion Policy 的 UNet 是 CNN，batch size 可能很小（视频数据显存限制），
+  且训练和推理的 batch 分布差异大，所以用 GroupNorm
+- pre_norm：norm 在 residual 之前，训练更稳定，适合深层网络
+- post_norm：norm 在 residual 之后，原始 Transformer 结构，深层容易梯度消失
+
+参考答案要点：
+- BatchNorm 在 batch 维度归一化，batch size 小或分布不均时效果差；推理时
+  用 running mean/var，训练和推理行为不一致
+- GroupNorm 把 channel 分成 G 组，在每组内归一化，不依赖 batch size，
+  适合 Diffusion Policy 这种小 batch CNN
+- pre_norm（x + Attention(LN(x))）比 post_norm（LN(x + Attention(x))）
+  梯度更稳定，现代 Transformer 普遍用 pre_norm
+
+
+7.4 优化器与学习率
+------------------
+问题：Adam 的 beta1 和 beta2 分别控制什么？为什么 beta1 通常设 0.9 或 0.95，
+beta2 设 0.999？warmup 的作用是什么？为什么前 500 步要从很小的学习率开始？
+cosine annealing 和 step decay 相比有什么优势？
+
+考察点：
+- beta1：一阶矩估计（momentum）的衰减率，控制梯度方向的记忆
+- beta2：二阶矩估计（梯度平方）的衰减率，控制自适应学习率
+- beta1=0.95 比 0.9 更平滑，适合 Transformer 训练
+- warmup：初期参数随机，梯度大，小学习率防止 loss 爆炸；同时让模型
+  逐渐适应数据分布
+- cosine annealing：学习率平滑下降到接近 0，比 step decay 更稳定，
+  不容易卡在局部最优
+
+参考答案要点：
+- Adam：m = beta1*m + (1-beta1)*g；v = beta2*v + (1-beta2)*g^2；
+  m_hat = m/(1-beta1^t)；v_hat = v/(1-beta2^t)；theta -= lr * m_hat/(sqrt(v_hat)+eps)
+- warmup 500 步：从 0 线性增加到 peak lr，避免初期大梯度破坏预训练权重
+- cosine schedule：lr = min_lr + 0.5*(max_lr-min_lr)*(1+cos(t/T*pi))，
+  平滑衰减，适合长训练
+
+
+7.5 损失函数与正则化
+--------------------
+问题：ACT 用 L1 loss，Diffusion Policy 用 MSE (L2) loss，为什么？能不能互换？
+grad_clip_norm=10.0 是干什么的？为什么 Diffusion Policy 特别需要它？
+weight_decay=1e-6 这么小，weight decay 和 dropout 都是正则化，它们的作用机制
+有什么区别？
+
+考察点：
+- L1 loss 对异常值更鲁棒，输出更稀疏；L2 loss 对异常值敏感，梯度更平滑
+- ACT 预测 action chunk，L1 能减少极端动作的影响
+- Diffusion 预测 noise，MSE 是标准选择，与 score matching 理论一致
+- 梯度裁剪：防止梯度爆炸，特别是 Diffusion 训练初期噪声大，梯度不稳定
+- weight_decay：L2 正则化，约束权重幅度；dropout：随机丢弃神经元，
+  防止 co-adaptation
+
+参考答案要点：
+- ACT 用 L1 因为 action 可能有异常值（如遥操作抖动），L1 更鲁棒
+- Diffusion 用 MSE 因为预测的是高斯噪声，MSE 对应最大似然估计
+- grad_clip_norm=10.0：把梯度 norm 裁剪到 10，防止 UNet 训练初期梯度爆炸
+- weight_decay 是参数层面的正则，dropout 是激活层面的正则；两者可以互补
+
+
+7.6 VLA / SmolVLA 相关
+----------------------
+问题：SmolVLA 基于 SmolVLM2，VLM 的 vision encoder 通常用什么结构？为什么
+训练时选择 freeze_vision_encoder=true？SmolVLA 的 action expert 和 LLM 的
+decoder 有什么区别？为什么 action expert 可以比 LLM 小很多？如果把 chunk_size
+从 50 改成 10，会发生什么？对训练和推理各有什么影响？
+
+考察点：
+- VLM vision encoder：通常是 ViT（如 SigLIP、CLIP ViT-L/14）
+- freeze vision encoder：利用预训练视觉表征，避免小数据微调破坏；减少
+  可训练参数，降低显存和过拟合风险
+- action expert：轻量 transformer，专门生成动作序列；不需要语言生成能力，
+  所以可以小很多
+- chunk_size=50 → 10：动作 horizon 变短，长期规划能力下降；训练时序列
+  变短，显存减少，但可能需要更频繁的 replanning
+
+参考答案要点：
+- SmolVLM2 用 SigLIP ViT 作为 vision encoder，已经在大量图文对上预训练
+- freeze 可以保留预训练视觉知识，只训练 100M 的 action expert，RTX 3090
+  也能跑
+- action expert 只做动作生成， vocab 是连续 action 而非离散 token，
+  结构更简单，参数量可以小 5~10 倍
+- chunk_size 减小：单次预测动作变少，长期任务（如 stack_bowls）可能失败；
+  推理延迟降低，但 replanning 频率增加，可能更不稳定
+
+
+八、八股文准备建议
+==================
+
+1. 不要死记硬背，把每个八股文和项目经验绑定
+   - 比如被问 GroupNorm，就说"Diffusion Policy 的 UNet 用 GroupNorm，
+     因为 batch size 小，BatchNorm 不稳定"
+
+2. 答不上来时的标准话术
+   - "这个我了解得不够深入，但我猜可能是...，回去我会查一下确认"
+   - 面试官更讨厌不懂装懂
+
+3. 每天复习 2 个八股文，用手机录音自检
+   - 重点：Transformer、Diffusion、归一化、优化器
+
+4. 关联阅读
+   - ACT 论文：https://arxiv.org/abs/2304.13705
+   - Diffusion Policy 论文：https://arxiv.org/abs/2303.04137
+   - DDPM 论文：https://arxiv.org/abs/2006.11239
+   - SmolVLA：https://huggingface.co/blog/smolvla
+
+
+九、模拟面试全流程反馈汇总
+==========================
+
+以下基于 3 轮模拟面试（技术一面、主管面、HR 面）的完整反馈整理，
+涵盖回答中的错误、亮点、改进建议和综合评价。
+
+
+9.1 第 1 轮：技术一面（VLA / 模仿学习算法工程师）
+-------------------------------------------------
+
+### 回答中的错误或不准确之处
+
+1. ACT 的 loss 和 action chunk
+   - 错误表述：L1 损失作用在单步 action 上，然后对 chunk 取平均
+   - 正确理解：
+     * 训练时：模型一次性预测 50 步 action chunk，loss 在整个 chunk
+       的每一帧上计算 L1，再平均
+     * 推理时：用 temporal ensemble，把当前 chunk 和历史 chunk 按
+       权重平均，执行前 n_action_steps 步
+   - 关键区别：训练时的 loss 计算 ≠ 推理时的 ensemble 机制
+
+2. Diffusion Policy 的 num_inference_steps
+   - 错误表述：num_inference_steps=10 代表加噪 10 次、去噪 5 次
+   - 正确理解：
+     * num_inference_steps 就是去噪（denoise）的步数
+     * 训练时随机采样 timestep t，给 action 加噪，模型预测噪声 epsilon
+     * 推理时从纯噪声开始，迭代 num_inference_steps 次逐步去噪
+     * DDIM 的优势就是可以用更少步数达到相近效果
+
+3. SmolVLA 失败原因判断
+   - 现场说法：视觉定位精度不够，夹爪在碗上方但不够往下
+   - 文档说法：夹爪闭合深度不够，夹得很浅，夹空气搬运空气
+   - 问题：两个说法不一致，面试官会怀疑是否真正分析清楚
+   - 改进：统一为"视觉定位大致正确，但夹爪闭合深度/物理接触精度不足"
+
+4. 工程 bug 定位过程
+   - 错误表述："报错后检查上下游数据是否统一，看了源码"
+   - 问题：太笼统，没有具体 debug 路径
+   - 改进：按"报错信息 → 假设树 → 验证方法 → 定位 → 修复 → 反思"
+     的结构讲
+
+5. 提高成功率方案
+   - 错误表述：用强化学习导出更多训练数据
+   - 问题：跳跃太大，不具体，缺乏优先级
+   - 改进：按 P0（数据/步数）→ P1（多任务/增强）→ P2（RL/更强 VLA）
+     的优先级回答
+
+### 回答中的亮点
+
+- 真机经验：20 次测试、16 次成功、偏移 5cm 掉到 10%，量化意识好
+- 知道 ACT 用 L1 损失，Diffusion 用 epsilon 预测
+- 主动分析评估布局和数据集分布
+- 在真机 ACT 上看过 attention map
+
+### 一面整体评价
+
+| 维度 | 评分 | 点评 |
+|---|---|---|
+| 模型原理 | 5/10 | 关键概念有混淆，需要重新梳理 |
+| 失败归因 | 6/10 | 有分析意识，但口径不统一 |
+| 工程 debug | 6/10 | 能修 bug，但讲不出完整路径 |
+| 开放性问题 | 5/10 | 缺乏优先级框架 |
+| 沟通表达 | 5/10 | 口语词多，逻辑跳跃 |
+
+
+9.2 第 2 轮：技术二面 / 主管面（机器人学习负责人）
+--------------------------------------------------
+
+### 项目价值阐述问题
+
+- 问题：回答太散，缺乏「个人标签」
+- 你的表述："做了一些部署上面的工作，分析失败模式"
+- 改进：突出差异化价值
+  * 独立定位训练集和评估集分布不匹配的根因
+  * 修复 3 个工程 bug，让 LeRobot / XPolicyLab / SmolVLA 协同工作
+  * 系统对比 ACT → Diffusion → SmolVLA 的失败模式演进
+
+- 希望面试官记住的一句话：
+  "这个人能在数据受限的复杂 benchmark 上，独立完成多模型复现、
+   部署、失败归因，并修复底层框架 bug。"
+
+### VLA 和传统 BC 的区别
+
+- 你的理解：模型结构不同，VLA 有预训练模型带来泛化能力
+- 问题：理解太浅，认为去掉 language encoder 影响不大
+- 正确理解：
+  * 传统 BC：图像 + 状态 → action，单任务，数据需求大
+  * VLA：图像 + 状态 + 语言指令 → action，多任务，预训练迁移
+  * language 是区分 35 个任务的关键信号，提供任务先验和语义理解
+
+### Benchmark 的意义
+
+- 你的理解：定义正确，符合市面逻辑
+- 问题：缺乏工业视角
+- 改进：
+  * RoboDojo 的 10% 成功率反映当前 VLA 技术真实水平
+  * 测试数据效率和泛化能力，这正是工业界最关心的
+  * 如果能在 RoboDojo 做到 50%，说明具备小样本学习和分布外泛化能力
+
+### 人形机器人迁移
+
+- 你的表述："都是输入视觉/雷达信息，输出动作"、"站在前人肩膀上"
+- 问题：太空泛，没有信息量
+- 改进：
+  * SO-101 是 6 自由度单臂，人形是双臂 + 躯干 + 灵巧手
+  * 真机有动力学、摩擦、延迟、传感器噪声
+  * XPolicyLab 的 server/client 适配思路可以迁移，但 action space
+    和归一化需要重新设计
+
+### sim2real gap（回答较好）
+
+- 亮点：
+  * 提到仿真背景简单 vs 真机视觉干扰
+  * 提到传感器噪声、车载计算单元性能
+  * 有激光雷达 1:1 建模 + 贴图导入 MuJoCo 的实际经验
+
+- 专业表述优化：
+  * "背景简单" → 仿真环境视觉多样性不足，缺乏真实场景光照、遮挡、杂物干扰
+  * "忽视噪声" → 仿真没有建模传感器噪声、执行器延迟、关节摩擦
+  * "计算单元性能" → 边缘计算设备算力约束导致模型必须轻量化
+  * "激光雷达建模 + 贴图" → 基于真实场景重建的 domain randomization
+
+### 职业规划
+
+- 亮点：动机真实，提到国家政策，表达兴趣
+- 问题：
+  * "物理理解比较深"需要具体例子支撑
+  * "AI 使用频率高"太虚
+  * "见世面"不适合正式面试
+
+- 建议话术：
+  "我想做具身智能是因为这是 AI 落地的下一个关键场景，国家政策也在
+   重点支持。我的长期竞争力是机器人系统的全栈理解——从机械结构、
+   舵机控制到感知、规划、学习算法都有实践经验。我持续关注 VLA 领域，
+   独立复现过 ACT、Diffusion Policy、SmolVLA，并在 RoboDojo benchmark
+   上完成了系统的失败分析。我希望加入一个更专业的团队，参与真实产品
+   级的 VLA 研发。"
+
+### 二面整体评价
+
+| 维度 | 评分 | 点评 |
+|---|---|---|
+| 项目价值阐述 | 6/10 | 能说出做了什么事，但缺乏个人标签 |
+| VLA 理解深度 | 5/10 | 停留在表面，需要加强 |
+| Benchmark 认知 | 7/10 | 理解数据效率意义，但缺乏工业视角 |
+| sim2real 经验 | 8/10 | 有实际 domain randomization 经验 |
+| 职业规划 | 7/10 | 动机真实，但表述需要更聚焦 |
+| 沟通表达 | 5/10 | 口语词太多 |
+
+
+9.3 第 3 轮：HR 面
+------------------
+
+### 亮点
+
+1. 专业转换动机真实
+   - 从无人驾驶转具身智能，有组内背景支撑
+   - 承认自学为主，诚实
+   - 认为实际项目比课程学得快
+
+2. 困难案例具体
+   - 4G 显存笔记本 → 自己配 3090
+   - 夹爪贴黑色电工胶布解决单摄像头距离判断
+   - 新增 50 条数据把成功率推到 70%
+
+3. 成长总结到位
+   - ROS、训练流程、数据采集、时间同步、LeRobot 格式
+   - 有失败分析意识
+
+### 需要改进的地方
+
+1. "一气之下自己配电脑"太随意
+   - 改进："组里暂时没有额外算力，我评估后决定自己搭建训练环境，
+     配了 3090 工作站，保证了项目进度"
+
+2. "能源与动力工程表明我具备工程常识"逻辑牵强
+   - 改进："机械 + 能源动力的背景让我具备扎实的工程思维，在夹报车
+     项目中独立完成从机械改装、电控设计到算法部署的全流程，这是
+     纯 CS 背景候选人可能缺乏的系统工程能力"
+
+3. 对纯 AI 公司的排斥
+   - 改进："我优先看机器人公司，因为想把硬件经验用起来；但也开放
+     看 AI 公司的具身智能团队"
+
+4. 薪资回答太被动
+   - 改进："我了解到机器人大厂 VLA 实习生日薪大概在 300-500 元，
+     我期望在这个范围内。我更看重项目内容和成长空间"
+
+5. 缺少反问环节
+   - 准备问题：
+     * "咱们团队目前在 VLA 方向的主要产品场景是什么？"
+     * "实习期间会有 mentor 带吗？大概是什么风格的带教方式？"
+     * "如果实习表现好，有转正机会吗？转正考核主要看什么？"
+
+### HR 面整体评价
+
+| 维度 | 评分 | 点评 |
+|---|---|---|
+| Motivation | 7/10 | 转行动机真实，但表述可以更聚焦 |
+| 沟通能力 | 6/10 | 有具体案例，但口语词多 |
+| 稳定性 | 8/10 | 每周 5 天、至少 3 个月，时间充裕 |
+| 团队协作 | 7/10 | 有组内合作经验 |
+| 自我认知 | 7/10 | 知道背景限制，但有点过于保守 |
+| 求职诚意 | 7/10 | 对 base 和薪资灵活，但缺乏对公司的了解 |
+
+
+9.4 三轮综合评估
+----------------
+
+| 轮次 | 评分 | 关键结论 |
+|---|---|---|
+| 技术一面 | 6/10 | 工程能力不错，但模型原理和归因口径需要加强 |
+| 技术二面 | 6/10 | sim2real 经验是亮点，但 VLA 理解深度和表达专业性不足 |
+| HR 面 | 7/10 | 动机真实，时间稳定，建议通过 |
+
+综合结论：
+- 推荐录用，但建议以「初级 VLA 算法实习生」定级
+- 核心竞争力：真机 + 仿真双经验、独立全流程、工程 bug 修复
+- 需要补的短板：模型原理、失败归因口径、表达专业性
+
+
+9.5 面试准备优先级
+------------------
+
+P0（本周必须完成）：
+1. 把模型话术背熟，录音自检（ACT / Diffusion / SmolVLA）
+2. 统一 SmolVLA 失败原因的表述
+3. 准备 3 个 bug 的 STAR-R 描述
+
+P1（下周完成）：
+4. 画 ACT / Diffusion / SmolVLA 架构图，拍照存手机
+5. 准备 sim2real 和夹爪贴胶布案例的专业表述
+6. 调研智元 / 宇树的产品线和最新技术动态
+
+P2（持续做）：
+7. 每天减少"嗯"、"啊"等口语词，录音自检
+8. 关注 VLA 领域最新论文，面试时能聊 1-2 篇
+9. 复习八股文，每天 2 个
+
+
+9.6 面试当天 checklist
+----------------------
+
+[ ] 提前 10 分钟进入面试间（线上）或到达公司（线下）
+[ ] 准备好简历、项目文档、纸笔
+[ ] 手机静音，关闭无关通知
+[ ] 自我介绍控制在 2 分钟内
+[ ] 回答用「总-分-总」结构
+[ ] 不懂的问题直接说"不太清楚，但我猜可能是..."
+[ ] 每轮结束问 1-2 个反问问题
+[ ] 面试后 24 小时内发感谢邮件
